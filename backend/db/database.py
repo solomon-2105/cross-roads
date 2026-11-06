@@ -4,8 +4,10 @@ from sqlalchemy.ext.declarative import declarative_base
 
 from core.config import settings
 
+# pool_pre_ping: Neon pauses idle databases; this reopens a dropped connection instead of failing.
 engine = create_engine(
-    settings.DATABASE_URL
+    settings.DATABASE_URL,
+    pool_pre_ping=True,
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
