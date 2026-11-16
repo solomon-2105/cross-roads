@@ -1,9 +1,11 @@
+import logging
 import uuid
 from typing import Optional
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Cookie, Response, BackgroundTasks
 from sqlalchemy.orm import Session
 
+from core.config import settings
 from db.database import get_db, SessionLocal
 from models.story import Story, StoryNode
 from models.job import StoryJob
@@ -13,10 +15,13 @@ from schemas.story import (
 from schemas.job import StoryJobResponse
 from core.story_generator import StoryGenerator
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(
     prefix="/stories",
     tags=["stories"]
 )
+
 
 def get_session_id(session_id: Optional[str] = Cookie(None)):
     if not session_id:
@@ -32,7 +37,14 @@ def create_story(
         session_id: str = Depends(get_session_id),
         db: Session = Depends(get_db)
 ):
-    response.set_cookie(key="session_id", value=session_id, httponly=True)
+    # Local dev (http, same site via the Vite proxy): lax. Deployed (https, frontend on another domain): none + secure.
+    response.set_cookie(
+        key="session_id",
+        value=session_id,
+        httponly=True,
+        secure=not settings.DEBUG,
+        samesite="lax" if settings.DEBUG else "none",
+    )
 
     job_id = str(uuid.uuid4())
 
@@ -54,6 +66,7 @@ def create_story(
 
     return job
 
+
 def generate_story_task(job_id: str, theme: str, session_id: str):
     db = SessionLocal()
 
@@ -69,15 +82,20 @@ def generate_story_task(job_id: str, theme: str, session_id: str):
 
             story = StoryGenerator.generate_story(db, session_id, theme)
 
-            job.story_id = story.id  # todo: update story id
+            job.story_id = story.id
             job.status = "completed"
             job.completed_at = datetime.now()
             db.commit()
-        except Exception as e:
-            job.status = "failed"
-            job.completed_at = datetime.now()
-            job.error = str(e)
-            db.commit()
+        except Exception:
+            # Without rollback, a failed flush leaves the session unusable and the job stuck in "processing".
+            db.rollback()
+            logger.exception("Story generation failed for job %s", job_id)
+            job = db.query(StoryJob).filter(StoryJob.job_id == job_id).first()
+            if job:
+                job.status = "failed"
+                job.completed_at = datetime.now()
+                job.error = "The story could not be generated. Please try again."
+                db.commit()
     finally:
         db.close()
 
@@ -112,7 +130,7 @@ def build_complete_story_tree(db: Session, story: Story) -> CompleteStoryRespons
 
     return CompleteStoryResponse(
         id=story.id,
-        title= story.title,
+        title=story.title,
         session_id=story.session_id,
         created_at=story.created_at,
         root_node=node_dict[root_node.id],

@@ -10,4 +10,7 @@ wheels/
 # Secrets and local data - never commit these
 .env
 *.db
+*.db-wal
+*.db-shm
+*.db-journal
 *.sqlite3

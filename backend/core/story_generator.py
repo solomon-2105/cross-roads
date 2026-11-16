@@ -8,25 +8,21 @@ from core.config import settings
 from core.prompts import STORY_PROMPT
 from models.story import Story, StoryNode
 from core.models import StoryLLMResponse, StoryNodeLLM
-from dotenv import load_dotenv
-import os
 
-load_dotenv()
 
 class StoryGenerator:
 
     @classmethod
     def _get_llm(cls):
-        api_key = os.getenv("GEMINI_API_KEY") or settings.GEMINI_API_KEY
-        if not api_key:
+        if not settings.GEMINI_API_KEY:
             raise RuntimeError(
-                "GEMINI_API_KEY is missing. Add it to backend/.env and restart the backend."
+                "GEMINI_API_KEY is missing. Set it in backend/.env (local) or in the host's environment variables."
             )
 
+        # temperature/top_p/top_k are deprecated on gemini-3.5-flash-lite and later models, so none are passed.
         return ChatGoogleGenerativeAI(
             model=settings.GEMINI_MODEL,
-            google_api_key=api_key,
-            temperature=0.9,
+            google_api_key=settings.GEMINI_API_KEY,
             max_retries=2,
             response_mime_type="application/json",
         )
@@ -44,19 +40,13 @@ class StoryGenerator:
         return content
 
     @classmethod
-    def generate_story(cls, db: Session, session_id: str, theme: str = "fantasy")-> Story:
+    def generate_story(cls, db: Session, session_id: str, theme: str = "fantasy") -> Story:
         llm = cls._get_llm()
         story_parser = PydanticOutputParser(pydantic_object=StoryLLMResponse)
 
         prompt = ChatPromptTemplate.from_messages([
-            (
-                "system",
-                STORY_PROMPT
-            ),
-            (
-                "human",
-                "Create the story with this theme: {theme}"
-            )
+            ("system", STORY_PROMPT),
+            ("human", "Create the story with this theme: {theme}"),
         ]).partial(format_instructions=story_parser.get_format_instructions())
 
         raw_response = llm.invoke(prompt.invoke({"theme": theme}))
@@ -81,16 +71,16 @@ class StoryGenerator:
     def _process_story_node(cls, db: Session, story_id: int, node_data: StoryNodeLLM, is_root: bool = False) -> StoryNode:
         node = StoryNode(
             story_id=story_id,
-            content=node_data.content if hasattr(node_data, "content") else node_data["content"],
+            content=node_data.content,
             is_root=is_root,
-            is_ending=node_data.isEnding if hasattr(node_data, "isEnding") else node_data["isEnding"],
-            is_winning_ending=node_data.isWinningEnding if hasattr(node_data, "isWinningEnding") else node_data["isWinningEnding"],
-            options=[]
+            is_ending=node_data.isEnding,
+            is_winning_ending=node_data.isWinningEnding,
+            options=[],
         )
         db.add(node)
         db.flush()
 
-        if not node.is_ending and (hasattr(node_data, "options") and node_data.options):
+        if not node.is_ending and node_data.options:
             options_list = []
             for option_data in node_data.options:
                 next_node = option_data.nextNode
@@ -102,7 +92,7 @@ class StoryGenerator:
 
                 options_list.append({
                     "text": option_data.text,
-                    "node_id": child_node.id
+                    "node_id": child_node.id,
                 })
 
             node.options = options_list
