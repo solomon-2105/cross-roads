@@ -1,6 +1,6 @@
 # Crossroads - Choose Your Own Adventure AI
 
-app runs live on https://cross-roads-frontend.onrender.com/
+Link : https://cross-roads-frontend.onrender.com/
 
 Type a theme and Google Gemini writes a branching adventure with multiple endings. You pick the path.
 
