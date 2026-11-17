@@ -3,8 +3,8 @@ import { Compass } from "./Art.jsx"
 
 const STEPS = [
   "Drawing the map",
-  "Placing the dangers",
-  "Hiding the winning path",
+  "Placing the challenges",
+  "Discovering possible paths",
   "Writing the first page",
   "Sealing the endings",
 ]
