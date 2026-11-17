@@ -23,6 +23,12 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: str = ""
     GEMINI_MODEL: str = "gemini-3.5-flash-lite"
 
+    # Rate limiting for POST /stories/create
+    RATE_LIMIT_PER_IP_MAX: int = 5
+    RATE_LIMIT_PER_IP_WINDOW_SECONDS: int = 3600
+    RATE_LIMIT_GLOBAL_MAX: int = 100
+    RATE_LIMIT_GLOBAL_WINDOW_SECONDS: int = 86400
+
     @property
     def cors_origins(self) -> List[str]:
         return [

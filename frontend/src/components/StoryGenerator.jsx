@@ -66,7 +66,13 @@ function StoryGenerator() {
       setJobId(response.data.job_id)
     } catch (e) {
       setLoading(false)
-      setError(`Could not reach the story server: ${e.message}`)
+      const status = e.response?.status
+      const detail = e.response?.data?.detail
+      if ((status === 429 || status === 503) && typeof detail === "string") {
+        setError(detail)
+      } else {
+        setError(`Could not reach the story server: ${e.message}`)
+      }
     }
   }
 

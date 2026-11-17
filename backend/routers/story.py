@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Cookie, Response, Backgro
 from sqlalchemy.orm import Session
 
 from core.config import settings
+from core.rate_limit import limit_story_creation
 from db.database import get_db, SessionLocal
 from models.story import Story, StoryNode
 from models.job import StoryJob
@@ -29,7 +30,11 @@ def get_session_id(session_id: Optional[str] = Cookie(None)):
     return session_id
 
 
-@router.post("/create", response_model=StoryJobResponse)
+@router.post(
+    "/create",
+    response_model=StoryJobResponse,
+    dependencies=[Depends(limit_story_creation)],
+)
 def create_story(
         request: CreateStoryRequest,
         background_tasks: BackgroundTasks,
